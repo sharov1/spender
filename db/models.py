@@ -21,7 +21,7 @@ class User(Base):
     firstname = Column(String(50), nullable=False)
     lastname = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
-    #registred_at = Column(DateTime, default=datetime.now)
+    registred_at = Column(DateTime, default=datetime.now)
 
 engine = create_async_engine(
     os.getenv("SPENDER_DB_URL", "sqlite+aiosqlite:///spender.db"),
