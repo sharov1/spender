@@ -1,5 +1,5 @@
 from main import bot
-from aiogram import Router, html, Router, F
+from aiogram import html, Router, F 
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram import Dispatcher
