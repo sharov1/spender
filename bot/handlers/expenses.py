@@ -4,8 +4,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-from db.models import async_session, Expense   # твоя модель расходов
-from db.models import User                     # понадобится для user_id
+from db.models import async_session, Expense   
+from db.models import User                   
 
 router = Router()
 
@@ -45,10 +45,10 @@ def cancel_keyboard():
 @router.message(Command("add"))
 async def add_expense(message: types.Message, state: FSMContext):
     """
-    Первый шаг: показываем категории
+    Step one: show categories
     """
     await message.answer(
-        "Выбери категорию расхода:",
+        "Choose the category of the expense:",
         reply_markup=categories_keyboard()
     )
     await state.set_state(ExpenseStates.waiting_for_category)
@@ -57,7 +57,7 @@ async def add_expense(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.startswith("cat"))
 async def choose_category(callback: types.CallbackQuery, state: FSMContext):
     """
-    Пользователь выбрал категорию → сохраняем её в FSM → ждём сумму
+    User has been choosen the category → saving that in FSM → waiting for the summa
     """
     category = callback.data.split(":")[1]
 
@@ -75,11 +75,11 @@ async def choose_category(callback: types.CallbackQuery, state: FSMContext):
 @router.message(ExpenseStates.waiting_for_amount)
 async def enter_amount(message: types.Message, state: FSMContext):
     """
-    Второй шаг: введена сумма → сохраняем в БД
+    Step two: summa has been collected → saving in to db
     """
     text = message.text.strip()
 
-    # Проверка суммы
+    # Checking of the wroted number
     if not text.replace(".", "", 1).isdigit():
         return await message.answer(
             "Введите корректное число!",
@@ -88,11 +88,11 @@ async def enter_amount(message: types.Message, state: FSMContext):
 
     amount = float(text)
 
-    # Достаём данные из FSM
+    # Getting data from FSM
     data = await state.get_data()
     category = data["category"]
 
-    # Сохраняем в БД
+    # Saving in to db
     async with async_session() as session:
         expense = Expense(
             user_id=message.from_user.id,

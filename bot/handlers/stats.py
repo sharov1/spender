@@ -9,7 +9,7 @@ from db.models import async_session, Expense
 router = Router()
 
 # ======================================================
-#                    UI КНОПКИ
+#                    UI BUTTONS
 # ======================================================
 
 def stats_menu_kb():
@@ -34,7 +34,7 @@ def back_kb():
 
 
 # ======================================================
-#             БАР-ГРАФИК (ASCII)
+#                 GRAPH (ASCII)
 # ======================================================
 
 def bar_chart(value, max_value, length=15):
@@ -45,7 +45,7 @@ def bar_chart(value, max_value, length=15):
 
 
 # ======================================================
-#        Вывод статистики по категориям
+#        Display stats by categories
 # ======================================================
 
 def render_category_stats(expenses):
@@ -67,7 +67,7 @@ def render_category_stats(expenses):
 
 
 # ======================================================
-#        Динамика расходов (по датам)
+#        Dynamic of the expenses by dates
 # ======================================================
 
 def render_daily_dynamics(expenses):
@@ -90,7 +90,7 @@ def render_daily_dynamics(expenses):
 
 
 # ======================================================
-#         Получение данных по периодам
+#         Getting the data by periods of time
 # ======================================================
 
 async def get_expenses_by_period(user_id: int, period: str):
@@ -135,7 +135,7 @@ async def stats_cmd(message: types.Message):
 
 
 # ======================================================
-#           Callback — выбор периода
+#           Callback — choosing of the period
 # ======================================================
 
 @router.callback_query(F.data.startswith("stats:"))

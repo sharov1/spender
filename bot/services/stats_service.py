@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 
 async def get_stats(user_id: int, start_date: datetime, end_date: datetime):
-    """Базовая универсальная функция получения статистики"""
+    """Basic function for getting the statistic"""
 
     async with async_session() as session:
         query = (
