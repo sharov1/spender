@@ -3,8 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
 import datetime
-
-from db.models import async_session, Expense
+from db.models import async_session, Expense, UserSettings
 
 router = Router()
 
@@ -48,7 +47,7 @@ def bar_chart(value, max_value, length=15):
 #        Display stats by categories
 # ======================================================
 
-def render_category_stats(expenses):
+def render_category_stats(expenses, currency):
     categories = {}
     for e in expenses:
         categories[e.category] = categories.get(e.category, 0) + e.amount
@@ -61,7 +60,7 @@ def render_category_stats(expenses):
 
     for name, value in categories.items():
         bar = bar_chart(value, max_value)
-        lines.append(f"{name}: `{bar}` — *{value:.2f}₽*")
+        lines.append(f"{name}: `{bar}` — *{value:.2f}{currency}*")
 
     return "\n".join(lines)
 
@@ -70,7 +69,7 @@ def render_category_stats(expenses):
 #        Dynamic of the expenses by dates
 # ======================================================
 
-def render_daily_dynamics(expenses):
+def render_daily_dynamics(expenses, currency):
     days = {}
     for e in expenses:
         d = e.created_at.date()
@@ -84,7 +83,7 @@ def render_daily_dynamics(expenses):
 
     for date, value in sorted(days.items()):
         bar = bar_chart(value, max_value)
-        lines.append(f"{date}: `{bar}` {value:.2f}₽")
+        lines.append(f"{date}: `{bar}` {value:.2f}{currency}")
 
     return "\n".join(lines)
 
@@ -142,6 +141,14 @@ async def stats_cmd(message: types.Message):
 async def stats_period(callback: types.CallbackQuery):
     period = callback.data.split(":")[1]
 
+
+    async with async_session() as session:
+       result = await session.execute(
+           select(UserSettings).where(UserSettings.user_id == callback.from_user.id)
+       )
+       settings = result.scalar()
+       currency = settings.currency if settings else "$"
+
     # Вернуться в меню
     if period == "back":
         return await callback.message.edit_text(
@@ -165,11 +172,11 @@ async def stats_period(callback: types.CallbackQuery):
 
     text = (
         f"📅 *Период:* `{start.date()} — {now.date()}`\n"
-        f"💰 *Сумма:* {total:.2f}₽\n"
+        f"💰 *Сумма:* {total:.2f}{currency}\n"
         f"🧾 *Операций:* {len(expenses)}\n"
-        f"➗ *Средний расход:* {avg:.2f}₽\n\n"
-        f"{render_category_stats(expenses)}\n\n"
-        f"{render_daily_dynamics(expenses)}"
+        f"➗ *Средний расход:* {avg:.2f}{currency}\n\n"
+        f"{render_category_stats(expenses, currency)}\n\n"
+        f"{render_daily_dynamics(expenses, currency)}"
     )
 
     await callback.message.edit_text(

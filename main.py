@@ -7,7 +7,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from core.config import settings
-from bot.handlers import start_router, expenses_router, echo_router, stats_router
+from bot.handlers import start_router, expenses_router, echo_router, stats_router, settings_router
 
 
 async def main():
@@ -22,6 +22,7 @@ async def main():
     dp.include_router(start_router)
     dp.include_router(expenses_router)
     dp.include_router(stats_router)
+    dp.include_router(settings_router)
     dp.include_router(echo_router)
 
     await dp.start_polling(bot)

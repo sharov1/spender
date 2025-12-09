@@ -24,6 +24,18 @@ class User(Base):
     registred_at = Column(DateTime, default=datetime.now)
 
 
+#User settings base
+class UserSettings(Base):
+    __tablename__ = "spenderbot_settings"
+
+    user_id = mapped_column(Integer, ForeignKey("spenderbot_users.telegram_id"), primary_key=True)
+    currency = mapped_column(String(10), default="$")
+    categories = mapped_column(String(300), default="Food,Transport,Coffee,Gifts,Other")
+    limit = mapped_column(Float, nullable=True)
+    notifications = mapped_column(Boolean, default=True)
+
+
+
 #Expenses base
 class Expense(Base):
     __tablename__ = "spenderbot_expenses"
