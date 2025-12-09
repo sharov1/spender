@@ -1,18 +1,18 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
 #from .base import Base
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine
 import os
 
 from aiosqlite import *
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-
 from datetime import datetime
 
 Base = declarative_base()
 
+#Users base
 class User(Base):
     __tablename__ = "spenderbot_users"
     
@@ -23,6 +23,19 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     registred_at = Column(DateTime, default=datetime.now)
 
+
+#Expenses base
+class Expense(Base):
+    __tablename__ = "spenderbot_expenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("spenderbot_users.telegram_id"))
+    category: Mapped[str] = mapped_column(String(50))
+    amount: Mapped[float] = mapped_column(Float)
+    created_at = mapped_column(DateTime, default=datetime.now)
+
+
+
 engine = create_async_engine(
     os.getenv("SPENDER_DB_URL", "sqlite+aiosqlite:///spender.db"),
     echo=True)
@@ -32,11 +45,7 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-# Для ручного запуска файла: python db/models.py
+# For manual start python db/models.py
 if __name__ == "__main__":
     import asyncio
     asyncio.run(init_db())
-
-
-#class Expense(Base):
-#    pass
