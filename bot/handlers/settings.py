@@ -12,6 +12,23 @@ CURRENCIES = ["Br", "$", "€", "₾", "£", "₽"]
 
 
 # ---------------------
+# 📂 Category keyboards
+# ---------------------
+
+def categories_menu(categories: list):
+    """Меню списка категорий"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"❌ {c}", callback_data=f"cat_del:{c}")] for c in categories
+        ] + [
+            [InlineKeyboardButton(text="➕ Добавить категорию", callback_data="cat:add")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:main")]
+        ]
+    )
+
+
+
+# ---------------------
 # 🔧 Settings buttons
 # ---------------------
 
@@ -87,6 +104,37 @@ async def get_user_settings(user_id: int):
 
 
 # ---------------------
+# 📂 Category handlers
+# ---------------------
+
+async def add_category(user_id: int, new_cat: str):
+    async with async_session() as session:
+        result = await session.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+        settings = result.scalar()
+        cats = settings.categories.split(",")
+
+        if new_cat not in cats:
+            cats.append(new_cat)
+            settings.categories = ",".join(cats)
+            session.add(settings)
+            await session.commit()
+
+
+async def delete_category(user_id: int, cat: str):
+    async with async_session() as session:
+        result = await session.execute(select(UserSettings).where(UserSettings.user_id == user_id))
+        settings = result.scalar()
+        cats = settings.categories.split(",")
+
+        if cat in cats:
+            cats.remove(cat)
+            settings.categories = ",".join(cats)
+            session.add(settings)
+            await session.commit()
+
+
+
+# ---------------------
 # ⚙️ /settings
 # ---------------------
 
@@ -128,12 +176,12 @@ async def settings_callback(callback: CallbackQuery):
 
     if action == "categories":
         settings = await get_user_settings(callback.from_user.id)
+        cats = settings.categories.split(",")
         return await callback.message.edit_text(
-            f"📂 <b>Ваши категории:</b>\n{settings.categories}\n\n"
-            f"Пока редактирование категории реализуем позже 🙂",
+            "📂 <b>Ваши категории</b>\nНажмите на категорию, чтобы удалить.",
             parse_mode="HTML",
-            reply_markup=settings_menu()
-        )
+            reply_markup=categories_menu(cats)
+    )
 
     if action == "limit":
         return await callback.message.edit_text(
@@ -184,3 +232,53 @@ async def choose_currency(callback: CallbackQuery):
     await callback.answer()
 
 
+
+
+
+@router.callback_query(F.data.startswith("cat_del:"))
+async def delete_cat_cb(callback: CallbackQuery):
+    cat = callback.data.split(":")[1]
+    user_id = callback.from_user.id
+
+    await delete_category(user_id, cat)
+    settings = await get_user_settings(user_id)
+    cats = settings.categories.split(",")
+
+    await callback.message.edit_text(
+        "📂 <b>Ваши категории</b>\nКатегория удалена.",
+        parse_mode="HTML",
+        reply_markup=categories_menu(cats)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cat:add")
+async def add_cat_start(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "Введите название новой категории:",
+    )
+    await callback.answer()
+
+    # Запоминаем, что мы ждём текст
+    router.category_add_mode = callback.from_user.id
+
+
+@router.message()
+async def add_cat_text(message: types.Message):
+    # Проверяем, ждём ли мы категорию от этого пользователя
+    if getattr(router, "category_add_mode", None) != message.from_user.id:
+        return
+
+    router.category_add_mode = None  # Сбрасываем режим
+
+    new_cat = message.text.strip()
+    await add_category(message.from_user.id, new_cat)
+
+    settings = await get_user_settings(message.from_user.id)
+    cats = settings.categories.split(",")
+
+    await message.answer(
+        f"Категория <b>{new_cat}</b> добавлена!",
+        parse_mode="HTML",
+        reply_markup=categories_menu(cats)
+    )
