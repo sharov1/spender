@@ -2,8 +2,14 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from sqlalchemy import select
-
 from db.models import async_session, UserSettings
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+
+#FSM for categoies adding
+class CategoryStates(StatesGroup):
+    waiting_for_new_category = State()
+
 
 router = Router()
 
@@ -242,26 +248,22 @@ async def delete_cat_cb(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "cat:add")
-async def add_cat_start(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "Введите название новой категории:",
-    )
+async def add_cat_start(callback: CallbackQuery, state: FSMContext):
+    await callback.message.edit_text("Введите название новой категории:")
+    await state.set_state(CategoryStates.waiting_for_new_category)
     await callback.answer()
 
     
     router.category_add_mode = callback.from_user.id
 
 
-@router.message()
-async def add_cat_text(message: types.Message):
-    
-    if getattr(router, "category_add_mode", None) != message.from_user.id:
-        return
-
-    router.category_add_mode = None  # Сбрасываем режим
-
+@router.message(CategoryStates.waiting_for_new_category)
+async def add_cat_text(message: types.Message, state: FSMContext):
     new_cat = message.text.strip()
+
     await add_category(message.from_user.id, new_cat)
+
+    await state.clear()
 
     settings = await get_user_settings(message.from_user.id)
     cats = settings.categories.split(",")
@@ -269,5 +271,5 @@ async def add_cat_text(message: types.Message):
     await message.answer(
         f"Категория <b>{new_cat}</b> добавлена!",
         parse_mode="HTML",
-        reply_markup=categories_menu(cats)
+        reply_markup=categories_menu(cats),
     )
