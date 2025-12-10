@@ -16,7 +16,7 @@ CURRENCIES = ["Br", "$", "€", "₾", "£", "₽"]
 # ---------------------
 
 def categories_menu(categories: list):
-    """Меню списка категорий"""
+    """Categories menu"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"❌ {c}", callback_data=f"cat_del:{c}")] for c in categories
@@ -32,9 +32,8 @@ def categories_menu(categories: list):
 # 🔧 Settings buttons
 # ---------------------
 
-
 def currency_keyboard():
-    """Меню выбора валюты."""
+    """Currency menu."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=cur, callback_data=f"currency:{cur}")]
@@ -43,7 +42,6 @@ def currency_keyboard():
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:main")]
         ]
     )
-
 
 
 def settings_menu():
@@ -63,16 +61,6 @@ def settings_menu():
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:back"),
             ],
         ]
-    )
-
-
-def currency_menu():
-    currencies = ["₽", "$", "€", "£"]
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=c, callback_data=f"currency:{c}")]
-            for c in currencies
-        ] + [[InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:main")]]
     )
 
 
@@ -214,7 +202,7 @@ async def settings_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("currency:"))
 async def choose_currency(callback: CallbackQuery):
-    """Изменение валюты пользователем."""
+    """Changing currency by user"""
     symbol = callback.data.split(":")[1]
 
     settings = await get_user_settings(callback.from_user.id)
@@ -232,8 +220,9 @@ async def choose_currency(callback: CallbackQuery):
     await callback.answer()
 
 
-
-
+# ---------------------
+# 💱 Categories add/del
+# ---------------------
 
 @router.callback_query(F.data.startswith("cat_del:"))
 async def delete_cat_cb(callback: CallbackQuery):
@@ -259,13 +248,13 @@ async def add_cat_start(callback: CallbackQuery):
     )
     await callback.answer()
 
-    # Запоминаем, что мы ждём текст
+    
     router.category_add_mode = callback.from_user.id
 
 
 @router.message()
 async def add_cat_text(message: types.Message):
-    # Проверяем, ждём ли мы категорию от этого пользователя
+    
     if getattr(router, "category_add_mode", None) != message.from_user.id:
         return
 

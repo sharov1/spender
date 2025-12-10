@@ -16,8 +16,6 @@ class ExpenseStates(StatesGroup):
     waiting_for_amount = State()
 
 
-#CATEGORIES = ["Food", "Transport", "Coffee", "Gifts", "Other"] ----------- старый список категорий
-
 
 # ============ KEYBOARDS ============
 
