@@ -2,7 +2,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from sqlalchemy import select
-from db.models import async_session, UserSettings
+from db.models import async_session, UserSettings, Expense
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
@@ -62,6 +62,9 @@ def settings_menu():
             ],
             [
                 InlineKeyboardButton(text="🔕 Уведомления", callback_data="settings:notifications"),
+            ],
+            [
+                InlineKeyboardButton(text="🗑 Удалить все расходы", callback_data="settings:clear_expenses"),
             ],
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:back"),
@@ -182,6 +185,19 @@ async def settings_callback(callback: CallbackQuery):
             "⚠️ Лимит расходов скоро будет реализован 👍",
             reply_markup=settings_menu()
         )
+    
+    if action == "clear_expenses":
+        return await callback.message.edit_text(
+            "❗ Вы уверены, что хотите удалить ВСЕ внесённые расходы?\n"
+            "Это действие необратимо!",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="🔥 Удалить всё", callback_data="confirm_clear_expenses")],
+                    [InlineKeyboardButton(text="⬅️ Отмена", callback_data="settings:main")]
+                ]
+        )
+    )
+
 
     if action == "notifications":
         async with async_session() as session:
@@ -277,3 +293,20 @@ async def add_cat_text(message: types.Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=categories_menu(cats),
     )
+
+
+@router.callback_query(F.data == "confirm_clear_expenses")
+async def clear_all_expenses(callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    async with async_session() as session:
+        await session.execute(
+            Expense.__table__.delete().where(Expense.user_id == user_id)
+        )
+        await session.commit()
+
+    await callback.message.edit_text(
+        "🗑 Все ваши расходы были успешно удалены!",
+        reply_markup=settings_menu()
+    )
+    await callback.answer()
