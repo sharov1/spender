@@ -9,5 +9,7 @@ __all__ = [
     "start_router",
     "expenses_router",
     "stats_router",
+    "settings_router",
     "echo_router",
+    
 ]

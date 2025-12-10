@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-
+from bot.handlers.settings import get_user_settings
 from db.models import async_session, Expense   
 from db.models import User                   
 
@@ -16,16 +16,17 @@ class ExpenseStates(StatesGroup):
     waiting_for_amount = State()
 
 
-CATEGORIES = ["Food", "Transport", "Coffee", "Gifts", "Other"]
-
 
 # ============ KEYBOARDS ============
 
-def categories_keyboard():
+async def categories_keyboard(user_id: int):
+    settings = await get_user_settings(user_id)
+    cats = settings.categories.split(",")
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=cat, callback_data=f"cat:{cat}")]
-            for cat in CATEGORIES
+            for cat in cats
         ] + [
             [InlineKeyboardButton(text="⬅️ Отмена", callback_data="cancel")]
         ]
@@ -44,17 +45,17 @@ def cancel_keyboard():
 
 @router.message(Command("add"))
 async def add_expense(message: types.Message, state: FSMContext):
-    """
-    Step one: show categories
-    """
+    keyboard = await categories_keyboard(message.from_user.id)
+
     await message.answer(
         "Choose the category of the expense:",
-        reply_markup=categories_keyboard()
+        reply_markup=keyboard
     )
+
     await state.set_state(ExpenseStates.waiting_for_category)
 
 
-@router.callback_query(F.data.startswith("cat"))
+@router.callback_query(F.data.startswith("cat:") & ~F.data.endswith("add"))
 async def choose_category(callback: types.CallbackQuery, state: FSMContext):
     """
     User has been choosen the category → saving that in FSM → waiting for the summa
