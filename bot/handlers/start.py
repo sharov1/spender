@@ -1,6 +1,7 @@
 from aiogram import Router, types, html
 from aiogram.filters import CommandStart
 from db.models import async_session, User
+from bot.main_menu import main_menu
 
 router = Router()
 
@@ -33,4 +34,11 @@ async def command_start(message: types.Message):
         lastname=tg.last_name
     )
 
-    await message.answer(f"Hello {html.bold(tg.full_name)}, I'm your ref bot!")
+    #await message.answer(f"Hello {html.bold(tg.full_name)}, I'm your bot!") - old welcome
+
+    # menu displaying
+    await message.answer(
+        f"Привет, {html.bold(tg.first_name or 'друг')}! 👋\n\n"
+        "Я бот учёта расходов. Выберите действие:",
+        reply_markup=main_menu
+    )

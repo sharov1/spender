@@ -151,7 +151,7 @@ async def settings_callback(callback: CallbackQuery):
 
     if action == "back":
         return await callback.message.edit_text(
-            "Главное меню закрыто 👌"
+            "Меню настроек закрыто 👌"
         )
 
     if action == "main":
@@ -184,20 +184,24 @@ async def settings_callback(callback: CallbackQuery):
         )
 
     if action == "notifications":
-        settings = await get_user_settings(callback.from_user.id)
-        settings.notifications = not settings.notifications
-
         async with async_session() as session:
+            result = await session.execute(
+                select(UserSettings).where(UserSettings.user_id == callback.from_user.id)
+            )
+            settings = result.scalar()
+            settings.notifications = not settings.notifications
+
             session.add(settings)
             await session.commit()
 
-        status = "🔔 Включены" if settings.notifications else "🔕 Выключены"
+            status = "🔔 Включены" if settings.notifications else "🔕 Выключены"
 
         return await callback.message.edit_text(
             f"Уведомления: <b>{status}</b>",
             parse_mode="HTML",
             reply_markup=settings_menu()
         )
+
 
     await callback.answer()
 
