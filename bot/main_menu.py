@@ -1,11 +1,13 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from bot.i18n import t 
 
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="➕ Добавить расход")],
-        [KeyboardButton(text="📊 Статистика")],
-        [KeyboardButton(text="📘 История")],
-        [KeyboardButton(text="⚙️ Настройки")],
-    ],
-    resize_keyboard=True
-)
+def main_menu(lang: str):
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(lang, "menu_add_expense"))],
+            [KeyboardButton(text=t(lang, "menu_stats"))],
+            [KeyboardButton(text=t(lang, "menu_history"))],
+            [KeyboardButton(text=t(lang, "menu_settings"))],
+        ],
+        resize_keyboard=True
+    )

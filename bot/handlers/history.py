@@ -6,39 +6,40 @@ from aiogram.fsm.state import StatesGroup, State
 
 from sqlalchemy import select
 from db.models import async_session, Expense
+from bot.i18n import t
+from bot.handlers.settings import get_user_settings
 
 
 router = Router()
 
 
 # =========================
-#      FSM СТАНЫ
+#         FSM
 # =========================
 
 class ExpenseEditStates(StatesGroup):
     waiting_for_new_amount = State()
 
 
-# =========================
-#   ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+
 # =========================
 
-def expense_actions_kb(exp_id: int):
+def expense_actions_kb(exp_id: int, lang: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Изменить сумму", callback_data=f"exp_edit:{exp_id}")],
-            [InlineKeyboardButton(text="🗑 Удалить", callback_data=f"exp_del:{exp_id}")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="history_back")],
+            [InlineKeyboardButton(text=t(lang, "edit_amount"), callback_data=f"exp_edit:{exp_id}")],
+            [InlineKeyboardButton(text=t(lang, "delete"), callback_data=f"exp_del:{exp_id}")],
+            [InlineKeyboardButton(text=t(lang, "back"), callback_data="history_back")],
         ]
     )
 
 
-def history_keyboard(expenses):
+def history_keyboard(expenses, currency: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"{e.category}: {e.amount}",
+                    text=f"{e.category}: {e.amount:.2f}{currency}",
                     callback_data=f"exp:{e.id}"
                 )
             ]
@@ -54,6 +55,8 @@ def history_keyboard(expenses):
 @router.message(Command("history"))
 async def history_list(message: types.Message):
     user_id = message.from_user.id
+    settings = await get_user_settings(user_id)
+    lang = settings.language
 
     async with async_session() as session:
         result = await session.execute(
@@ -65,48 +68,52 @@ async def history_list(message: types.Message):
         expenses = result.scalars().all()
 
     if not expenses:
-        return await message.answer("У тебя пока нет записанных расходов.")
+        return await message.answer(t(lang, "no_expenses"))
 
     await message.answer(
-        "Последние расходы:",
-        reply_markup=history_keyboard(expenses)
+        t(lang, "history_title"),
+        reply_markup=history_keyboard(expenses, settings.currency)
     )
 
 
 # =========================
-#  Просмотр конкретного расхода
+#  View of exact expense
 # =========================
 
 @router.callback_query(F.data.startswith("exp:"))
 async def expense_actions(callback: types.CallbackQuery, state: FSMContext):
     exp_id = int(callback.data.split(":")[1])
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
 
     async with async_session() as session:
         expense = await session.get(Expense, exp_id)
 
     if not expense:
-        return await callback.answer("Запись не найдена", show_alert=True)
+        return await callback.answer(t(lang, "expense_not_found_alert"), show_alert=True)
 
     text = (
-        f"📘 <b>Категория:</b> {expense.category}\n"
-        f"💵 <b>Сумма:</b> {expense.amount}\n"
-        f"🆔 <b>ID:</b> {expense.id}"
+        f"{t(lang, 'expense_category', category=expense.category)}\n"
+        f"{t(lang, 'expense_amount', amount=expense.amount, currency=settings.currency)}\n"
+        f"{t(lang, 'expense_id', id=expense.id)}"
     )
 
     await callback.message.edit_text(
         text, parse_mode="HTML",
-        reply_markup=expense_actions_kb(exp_id)
+        reply_markup=expense_actions_kb(exp_id, lang)
     )
     await callback.answer()
 
 
 # =========================
-#     УДАЛЕНИЕ
+#     Deleting
 # =========================
 
 @router.callback_query(F.data.startswith("exp_del:"))
 async def delete_expense(callback: types.CallbackQuery):
     exp_id = int(callback.data.split(":")[1])
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
 
     async with async_session() as session:
         expense = await session.get(Expense, exp_id)
@@ -114,24 +121,26 @@ async def delete_expense(callback: types.CallbackQuery):
             await session.delete(expense)
             await session.commit()
 
-    await callback.answer("Удалено!")
-    await callback.message.edit_text("🗑 Запись удалена.")
+    await callback.answer(t(lang, "deleted"))
+    await callback.message.edit_text(t(lang, "expense_deleted"))
 
 
 # =========================
-#     ИЗМЕНЕНИЕ СУММЫ
+#     Changing the summa
 # =========================
 
 @router.callback_query(F.data.startswith("exp_edit:"))
 async def edit_expense(callback: types.CallbackQuery, state: FSMContext):
     exp_id = int(callback.data.split(":")[1])
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
 
     await state.update_data(exp_id=exp_id)
 
     await callback.message.edit_text(
-        "Введите новую сумму:",
+        t(lang, "enter_new_amount"),
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Отмена", callback_data="history_back")]]
+            inline_keyboard=[[InlineKeyboardButton(text=t(lang, "back"), callback_data="history_back")]]
         )
     )
 
@@ -142,10 +151,12 @@ async def edit_expense(callback: types.CallbackQuery, state: FSMContext):
 @router.message(ExpenseEditStates.waiting_for_new_amount)
 async def save_new_amount(message: types.Message, state: FSMContext):
     text = message.text.strip()
+    settings = await get_user_settings(message.from_user.id)
+    lang = settings.language
 
     # проверяем что число
     if not text.replace(".", "", 1).isdigit():
-        return await message.answer("Введите корректное число!")
+        return await message.answer(t(lang, "enter_correct_number_short"))
 
     new_amount = float(text)
     data = await state.get_data()
@@ -156,24 +167,26 @@ async def save_new_amount(message: types.Message, state: FSMContext):
 
         if not expense:
             await state.clear()
-            return await message.answer("Ошибка: запись не найдена.")
+            return await message.answer(t(lang, "expense_not_found"))
 
         expense.amount = new_amount
         await session.commit()
 
     await state.clear()
-    await message.answer(f"✔ Сумма обновлена: {new_amount}")
+    await message.answer(t(lang, "amount_updated", amount=new_amount))
 
 
 # =========================
-#       КНОПКА НАЗАД
+#       BACK button
 # =========================
 
 @router.callback_query(F.data == "history_back")
 async def history_back(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    settings = await get_user_settings(user_id)
+    lang = settings.language
 
-    # Загружаем последние 10 расходов
+    # downloading the last 10 expenses
     async with async_session() as session:
         result = await session.execute(
             select(Expense)
@@ -184,13 +197,13 @@ async def history_back(callback: types.CallbackQuery):
         expenses = result.scalars().all()
 
     if not expenses:
-        await callback.message.edit_text("У тебя пока нет записанных расходов.")
+        await callback.message.edit_text(t(lang, "no_expenses"))
         return await callback.answer()
 
-    # Возвращаем меню последних трат
+    # Getting back the menuu of the last expenses
     await callback.message.edit_text(
-        "Последние расходы:",
-        reply_markup=history_keyboard(expenses)
+        t(lang, "history_title"),
+        reply_markup=history_keyboard(expenses, settings.currency)
     )
 
     await callback.answer()

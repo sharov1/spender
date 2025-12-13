@@ -5,8 +5,9 @@ from sqlalchemy import select
 from db.models import async_session, UserSettings, Expense
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from bot.i18n import t
 
-#FSM for categoies adding
+# FSM for categories adding
 class CategoryStates(StatesGroup):
     waiting_for_new_category = State()
 
@@ -16,58 +17,59 @@ router = Router()
 CURRENCIES = ["Br", "$", "€", "₾", "£", "₽"]
 
 
-
 # ---------------------
 # 📂 Category keyboards
 # ---------------------
 
-def categories_menu(categories: list):
+def categories_menu(categories: list, lang: str):
     """Categories menu"""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"❌ {c}", callback_data=f"cat_del:{c}")] for c in categories
         ] + [
-            [InlineKeyboardButton(text="➕ Добавить категорию", callback_data="cat:add")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:main")]
+            [InlineKeyboardButton(text=t(lang, "add_category"), callback_data="cat:add")],
+            [InlineKeyboardButton(text=t(lang, "back"), callback_data="settings:main")]
         ]
     )
-
 
 
 # ---------------------
 # 🔧 Settings buttons
 # ---------------------
 
-def currency_keyboard():
+def currency_keyboard(lang="ru"):
     """Currency menu."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=cur, callback_data=f"currency:{cur}")]
             for cur in CURRENCIES
         ] + [
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:main")]
+            [InlineKeyboardButton(text=t(lang, "back"), callback_data="settings:main")]
         ]
     )
 
 
-def settings_menu():
+def settings_menu(lang="ru"):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="💱 Валюта", callback_data="settings:currency"),
-                InlineKeyboardButton(text="📂 Категории", callback_data="settings:categories"),
+                InlineKeyboardButton(text=t(lang, "currency"), callback_data="settings:currency"),
+                InlineKeyboardButton(text=t(lang, "categories"), callback_data="settings:categories"),
             ],
             [
-                InlineKeyboardButton(text="⚠️ Лимит расходов", callback_data="settings:limit"),
+                InlineKeyboardButton(text=t(lang, "limit"), callback_data="settings:limit"),
             ],
             [
-                InlineKeyboardButton(text="🔕 Уведомления", callback_data="settings:notifications"),
+                InlineKeyboardButton(text=t(lang, "notifications"), callback_data="settings:notifications"),
             ],
             [
-                InlineKeyboardButton(text="🗑 Удалить все расходы", callback_data="settings:clear_expenses"),
+                InlineKeyboardButton(text=t(lang, "language"), callback_data="settings:language")
             ],
             [
-                InlineKeyboardButton(text="⬅️ Назад", callback_data="settings:back"),
+                InlineKeyboardButton(text=t(lang, "clear_expenses"), callback_data="settings:clear_expenses"),
+            ],
+            [
+                InlineKeyboardButton(text=t(lang, "back"), callback_data="settings:back"),
             ],
         ]
     )
@@ -87,13 +89,14 @@ async def get_user_settings(user_id: int):
         if settings:
             return settings
 
-        # Creating the default settings
+        # Creating default settings
         settings = UserSettings(
             user_id=user_id,
             currency="$",
             categories="Food,Transport,Coffee,Gifts,Other",
             limit=None,
-            notifications=True
+            notifications=True,
+            language="en"
         )
         session.add(settings)
         await session.commit()
@@ -130,108 +133,114 @@ async def delete_category(user_id: int, cat: str):
             await session.commit()
 
 
-
 # ---------------------
 # ⚙️ /settings
 # ---------------------
 
 @router.message(Command("settings"))
 async def settings_cmd(message: types.Message):
+    settings = await get_user_settings(message.from_user.id)
+
     await message.answer(
-        "⚙️ <b>Настройки бота</b>\nВыберите параметр:",
+        t(settings.language, "settings_title"),
         parse_mode="HTML",
-        reply_markup=settings_menu()
+        reply_markup=settings_menu(settings.language)
     )
 
 
 # ---------------------
-# ⚙️ Processing of settings menu
+# ⚙️ Processing settings menu
 # ---------------------
 
 @router.callback_query(F.data.startswith("settings:"))
 async def settings_callback(callback: CallbackQuery):
     action = callback.data.split(":")[1]
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
 
     if action == "back":
-        return await callback.message.edit_text(
-            "Меню настроек закрыто 👌"
-        )
+        return await callback.message.edit_text(t(lang, "back"))
 
     if action == "main":
         return await callback.message.edit_text(
-            "⚙️ <b>Настройки бота</b>",
+            t(lang, "settings_title"),
             parse_mode="HTML",
-            reply_markup=settings_menu()
+            reply_markup=settings_menu(lang)
         )
 
     if action == "currency":
         return await callback.message.edit_text(
-            "💱 Выберите валюту:",
+            t(lang, "choose_currency"),
             parse_mode="HTML",
-            reply_markup=currency_keyboard()
+            reply_markup=currency_keyboard(lang)
         )
 
     if action == "categories":
-        settings = await get_user_settings(callback.from_user.id)
         cats = settings.categories.split(",")
         return await callback.message.edit_text(
-            "📂 <b>Ваши категории</b>\nНажмите на категорию, чтобы удалить.",
+            t(lang, "your_categories"),
             parse_mode="HTML",
-            reply_markup=categories_menu(cats)
-    )
+            reply_markup=categories_menu(cats, lang)
+        )
 
     if action == "limit":
         return await callback.message.edit_text(
-            "⚠️ Лимит расходов скоро будет реализован 👍",
-            reply_markup=settings_menu()
+            t(lang, "limit_coming_soon"),
+            reply_markup=settings_menu(lang)
         )
-    
+
     if action == "clear_expenses":
         return await callback.message.edit_text(
-            "❗ Вы уверены, что хотите удалить ВСЕ внесённые расходы?\n"
-            "Это действие необратимо!",
+            t(lang, "clear_expenses_confirm"),
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="🔥 Удалить всё", callback_data="confirm_clear_expenses")],
-                    [InlineKeyboardButton(text="⬅️ Отмена", callback_data="settings:main")]
+                    [InlineKeyboardButton(text=t(lang, "delete_all"), callback_data="confirm_clear_expenses")],
+                    [InlineKeyboardButton(text=t(lang, "back"), callback_data="settings:main")]
                 ]
+            )
         )
-    )
 
+    if action == "language":
+        return await callback.message.edit_text(
+            t(lang, "choose_language"),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang:ru")],
+                    [InlineKeyboardButton(text="🇬🇧 English", callback_data="lang:en")],
+                    [InlineKeyboardButton(text=t(lang, "back"), callback_data="settings:main")],
+                ]
+            )
+        )
 
     if action == "notifications":
-        async with async_session() as session:
-            result = await session.execute(
-                select(UserSettings).where(UserSettings.user_id == callback.from_user.id)
-            )
-            settings = result.scalar()
-            settings.notifications = not settings.notifications
+        settings.notifications = not settings.notifications
 
+        async with async_session() as session:
             session.add(settings)
             await session.commit()
 
-            status = "🔔 Включены" if settings.notifications else "🔕 Выключены"
+        status = t(lang, "notifications_on") if settings.notifications else t(lang, "notifications_off")
 
         return await callback.message.edit_text(
-            f"Уведомления: <b>{status}</b>",
+            status,
             parse_mode="HTML",
-            reply_markup=settings_menu()
+            reply_markup=settings_menu(lang)
         )
-
 
     await callback.answer()
 
 
 # ---------------------
-# 💱 Choosing currency
+# 💱 Currency change
 # ---------------------
 
 @router.callback_query(F.data.startswith("currency:"))
 async def choose_currency(callback: CallbackQuery):
-    """Changing currency by user"""
     symbol = callback.data.split(":")[1]
 
     settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
     settings.currency = symbol
 
     async with async_session() as session:
@@ -239,9 +248,9 @@ async def choose_currency(callback: CallbackQuery):
         await session.commit()
 
     await callback.message.edit_text(
-        f"💱 Валюта обновлена на <b>{symbol}</b>!",
+        f"{t(lang, 'currency')}: <b>{symbol}</b>",
         parse_mode="HTML",
-        reply_markup=settings_menu()
+        reply_markup=settings_menu(lang)
     )
     await callback.answer()
 
@@ -257,24 +266,25 @@ async def delete_cat_cb(callback: CallbackQuery):
 
     await delete_category(user_id, cat)
     settings = await get_user_settings(user_id)
+    lang = settings.language
     cats = settings.categories.split(",")
 
     await callback.message.edit_text(
-        "📂 <b>Ваши категории</b>\nКатегория удалена.",
+        t(lang, "categories"),
         parse_mode="HTML",
-        reply_markup=categories_menu(cats)
+        reply_markup=categories_menu(cats, lang)
     )
     await callback.answer()
 
 
 @router.callback_query(F.data == "cat:add")
 async def add_cat_start(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_text("Введите название новой категории:")
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
+
+    await callback.message.edit_text(t(lang, "enter_new_category"))
     await state.set_state(CategoryStates.waiting_for_new_category)
     await callback.answer()
-
-    
-    router.category_add_mode = callback.from_user.id
 
 
 @router.message(CategoryStates.waiting_for_new_category)
@@ -282,22 +292,24 @@ async def add_cat_text(message: types.Message, state: FSMContext):
     new_cat = message.text.strip()
 
     await add_category(message.from_user.id, new_cat)
-
     await state.clear()
 
     settings = await get_user_settings(message.from_user.id)
+    lang = settings.language
     cats = settings.categories.split(",")
 
     await message.answer(
-        f"Категория <b>{new_cat}</b> добавлена!",
+        t(lang, "category_added", new_cat=new_cat),
         parse_mode="HTML",
-        reply_markup=categories_menu(cats),
+        reply_markup=categories_menu(cats, lang),
     )
 
 
 @router.callback_query(F.data == "confirm_clear_expenses")
 async def clear_all_expenses(callback: CallbackQuery):
     user_id = callback.from_user.id
+    settings = await get_user_settings(user_id)
+    lang = settings.language
 
     async with async_session() as session:
         await session.execute(
@@ -306,7 +318,36 @@ async def clear_all_expenses(callback: CallbackQuery):
         await session.commit()
 
     await callback.message.edit_text(
-        "🗑 Все ваши расходы были успешно удалены!",
-        reply_markup=settings_menu()
+        t(lang, "all_expenses_deleted"),
+        reply_markup=settings_menu(lang)
     )
+    await callback.answer()
+
+
+# ---------------
+# 🌐 Language change
+# ---------------
+
+@router.callback_query(F.data.startswith("lang:"))
+async def set_language(callback: CallbackQuery):
+    lang = callback.data.split(":")[1]
+    settings = await get_user_settings(callback.from_user.id)
+    settings.language = lang
+
+    async with async_session() as session:
+        session.add(settings)
+        await session.commit()
+
+    await callback.message.edit_text(
+        f"{t(lang, 'language')}: {'Русский 🇷🇺' if lang=='ru' else 'English 🇬🇧'}",
+        reply_markup=settings_menu(lang)
+    )
+    
+    # Обновляем главное меню с новым языком
+    from bot.main_menu import main_menu
+    await callback.message.answer(
+        f"✅ {t(lang, 'language_changed')}",
+        reply_markup=main_menu(lang)
+    )
+    
     await callback.answer()

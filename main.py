@@ -20,11 +20,13 @@ async def main():
 
     # Routers connection
     dp.include_router(start_router)
-    dp.include_router(main_menu_router)
+    # FSM роутеры должны быть раньше, чтобы перехватывать сообщения в состояниях
     dp.include_router(expenses_router)
-    dp.include_router(stats_router)
     dp.include_router(settings_router)
     dp.include_router(history_router)
+    # Обычные роутеры после FSM
+    dp.include_router(main_menu_router)
+    dp.include_router(stats_router)
     dp.include_router(echo_router)
 
     await dp.start_polling(bot)

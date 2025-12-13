@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from bot.handlers.settings import get_user_settings
+from bot.i18n import t
 from db.models import async_session, Expense   
 from db.models import User                   
 
@@ -21,6 +22,7 @@ class ExpenseStates(StatesGroup):
 
 async def categories_keyboard(user_id: int):
     settings = await get_user_settings(user_id)
+    lang = settings.language
     cats = settings.categories.split(",")
 
     return InlineKeyboardMarkup(
@@ -28,15 +30,17 @@ async def categories_keyboard(user_id: int):
             [InlineKeyboardButton(text=cat, callback_data=f"cat:{cat}")]
             for cat in cats
         ] + [
-            [InlineKeyboardButton(text="⬅️ Отмена", callback_data="cancel")]
+            [InlineKeyboardButton(text=t(lang, "cancel"), callback_data="cancel")]
         ]
     )
 
 
-def cancel_keyboard():
+async def cancel_keyboard(user_id: int):
+    settings = await get_user_settings(user_id)
+    lang = settings.language
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Отмена", callback_data="cancel")]
+            [InlineKeyboardButton(text=t(lang, "cancel"), callback_data="cancel")]
         ]
     )
 
@@ -45,10 +49,12 @@ def cancel_keyboard():
 
 @router.message(Command("add"))
 async def add_expense(message: types.Message, state: FSMContext):
+    settings = await get_user_settings(message.from_user.id)
+    lang = settings.language
     keyboard = await categories_keyboard(message.from_user.id)
 
     await message.answer(
-        "Choose the category of the expense:",
+        t(lang, "choose_category"),
         reply_markup=keyboard
     )
 
@@ -61,13 +67,15 @@ async def choose_category(callback: types.CallbackQuery, state: FSMContext):
     User has been choosen the category → saving that in FSM → waiting for the summa
     """
     category = callback.data.split(":")[1]
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
 
     await state.update_data(category=category)
 
     await callback.message.edit_text(
-        f"Категория: *{category}*\nВведите сумму расхода:",
+        f"{t(lang, 'category')}: *{category}*\n{t(lang, 'enter_amount')}",
         parse_mode="Markdown",
-        reply_markup=cancel_keyboard()
+        reply_markup=await cancel_keyboard(callback.from_user.id)
     )
     await state.set_state(ExpenseStates.waiting_for_amount)
     await callback.answer()
@@ -79,12 +87,14 @@ async def enter_amount(message: types.Message, state: FSMContext):
     Step two: summa has been collected → saving in to db
     """
     text = message.text.strip()
+    settings = await get_user_settings(message.from_user.id)
+    lang = settings.language
 
     # Checking of the wroted number
     if not text.replace(".", "", 1).isdigit():
         return await message.answer(
-            "Введите корректное число!",
-            reply_markup=cancel_keyboard()
+            t(lang, "enter_correct_number"),
+            reply_markup=await cancel_keyboard(message.from_user.id)
         )
 
     amount = float(text)
@@ -106,9 +116,7 @@ async def enter_amount(message: types.Message, state: FSMContext):
     await state.clear()
 
     await message.answer(
-        f"🟢 *Расход добавлен!*\n\n"
-        f"Категория: *{category}*\n"
-        f"Сумма: *{amount}*",
+        t(lang, "expense_added", category=category, amount=amount),
         parse_mode="Markdown"
     )
 
@@ -120,6 +128,8 @@ async def cancel(callback: types.CallbackQuery, state: FSMContext):
     """
     Отмена на любом шаге
     """
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
     await state.clear()
-    await callback.message.edit_text("❌ Операция отменена.")
+    await callback.message.edit_text(t(lang, "operation_cancelled"))
     await callback.answer()
