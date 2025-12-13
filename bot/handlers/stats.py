@@ -4,6 +4,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
 import datetime
 from db.models import async_session, Expense, UserSettings
+from bot.i18n import t
+from bot.handlers.settings import get_user_settings
 
 router = Router()
 
@@ -11,24 +13,24 @@ router = Router()
 #                    UI BUTTONS
 # ======================================================
 
-def stats_menu_kb():
+def stats_menu_kb(lang: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📅 Сегодня", callback_data="stats:day"),
-                InlineKeyboardButton(text="📆 Неделя", callback_data="stats:week")
+                InlineKeyboardButton(text=t(lang, "stats_today"), callback_data="stats:day"),
+                InlineKeyboardButton(text=t(lang, "stats_week"), callback_data="stats:week")
             ],
             [
-                InlineKeyboardButton(text="🗓 Месяц", callback_data="stats:month"),
-                InlineKeyboardButton(text="📈 Год", callback_data="stats:year")
+                InlineKeyboardButton(text=t(lang, "stats_month"), callback_data="stats:month"),
+                InlineKeyboardButton(text=t(lang, "stats_year"), callback_data="stats:year")
             ],
         ]
     )
 
 
-def back_kb():
+def back_kb(lang: str):
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="stats:back")]]
+        inline_keyboard=[[InlineKeyboardButton(text=t(lang, "back"), callback_data="stats:back")]]
     )
 
 
@@ -47,16 +49,16 @@ def bar_chart(value, max_value, length=15):
 #        Display stats by categories
 # ======================================================
 
-def render_category_stats(expenses, currency):
+def render_category_stats(expenses, currency, lang: str):
     categories = {}
     for e in expenses:
         categories[e.category] = categories.get(e.category, 0) + e.amount
 
     if not categories:
-        return "Нет данных."
+        return t(lang, "no_data")
 
     max_value = max(categories.values())
-    lines = ["📦 *По категориям:*", ""]
+    lines = [t(lang, "stats_by_categories"), ""]
 
     for name, value in categories.items():
         bar = bar_chart(value, max_value)
@@ -69,17 +71,17 @@ def render_category_stats(expenses, currency):
 #        Dynamic of the expenses by dates
 # ======================================================
 
-def render_daily_dynamics(expenses, currency):
+def render_daily_dynamics(expenses, currency, lang: str):
     days = {}
     for e in expenses:
         d = e.created_at.date()
         days[d] = days.get(d, 0) + e.amount
 
     if not days:
-        return "Нет данных."
+        return t(lang, "no_data")
 
     max_value = max(days.values())
-    lines = ["📈 *Динамика:*", ""]
+    lines = [t(lang, "stats_dynamics"), ""]
 
     for date, value in sorted(days.items()):
         bar = bar_chart(value, max_value)
@@ -126,9 +128,12 @@ async def get_expenses_by_period(user_id: int, period: str):
 
 @router.message(Command("stats"))
 async def stats_cmd(message: types.Message):
+    settings = await get_user_settings(message.from_user.id)
+    lang = settings.language
+    
     await message.answer(
-        "📊 *Выберите период статистики:*",
-        reply_markup=stats_menu_kb(),
+        t(lang, "stats_choose_period"),
+        reply_markup=stats_menu_kb(lang),
         parse_mode="Markdown"
     )
 
@@ -140,20 +145,15 @@ async def stats_cmd(message: types.Message):
 @router.callback_query(F.data.startswith("stats:"))
 async def stats_period(callback: types.CallbackQuery):
     period = callback.data.split(":")[1]
-
-
-    async with async_session() as session:
-       result = await session.execute(
-           select(UserSettings).where(UserSettings.user_id == callback.from_user.id)
-       )
-       settings = result.scalar()
-       currency = settings.currency if settings else "$"
+    settings = await get_user_settings(callback.from_user.id)
+    lang = settings.language
+    currency = settings.currency
 
     # Вернуться в меню
     if period == "back":
         return await callback.message.edit_text(
-            "📊 *Выберите период:*",
-            reply_markup=stats_menu_kb(),
+            t(lang, "stats_period"),
+            reply_markup=stats_menu_kb(lang),
             parse_mode="Markdown"
         )
 
@@ -163,26 +163,26 @@ async def stats_period(callback: types.CallbackQuery):
 
     if not expenses:
         return await callback.message.edit_text(
-            "Нет данных за выбранный период.",
-            reply_markup=back_kb()
+            t(lang, "no_data_period"),
+            reply_markup=back_kb(lang)
         )
 
     total = sum(e.amount for e in expenses)
     avg = total / len(expenses)
 
     text = (
-        f"📅 *Период:* `{start.date()} — {now.date()}`\n"
-        f"💰 *Сумма:* {total:.2f}{currency}\n"
-        f"🧾 *Операций:* {len(expenses)}\n"
-        f"➗ *Средний расход:* {avg:.2f}{currency}\n\n"
-        f"{render_category_stats(expenses, currency)}\n\n"
-        f"{render_daily_dynamics(expenses, currency)}"
+        f"{t(lang, 'stats_period_label')} `{start.date()} — {now.date()}`\n"
+        f"{t(lang, 'stats_total')} {total:.2f}{currency}\n"
+        f"{t(lang, 'stats_operations')} {len(expenses)}\n"
+        f"{t(lang, 'stats_avg_expense')} {avg:.2f}{currency}\n\n"
+        f"{render_category_stats(expenses, currency, lang)}\n\n"
+        f"{render_daily_dynamics(expenses, currency, lang)}"
     )
 
     await callback.message.edit_text(
         text,
         parse_mode="Markdown",
-        reply_markup=back_kb()
+        reply_markup=back_kb(lang)
     )
 
     await callback.answer()

@@ -33,6 +33,7 @@ class UserSettings(Base):
     categories = mapped_column(String(300), default="Food,Transport,Coffee,Gifts,Other")
     limit = mapped_column(Float, nullable=True)
     notifications = mapped_column(Boolean, default=True)
+    language = Column(String, default="en")
 
 
 
