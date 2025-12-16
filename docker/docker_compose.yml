@@ -1,0 +1,10 @@
+services:
+  database:
+    image: postgres:17
+    container_name: spender_database
+    volumes:
+      - /home/spender_user/postgresql/data:/home/spender_user/postgresql/data
+    env_file:
+      - database.env
+    ports:
+      - "127.0.0.1:5432:5432"
