@@ -8,3 +8,14 @@ services:
       - database.env
     ports:
       - "127.0.0.1:5432:5432"
+
+  bot:
+    build:
+      context: ..
+      dockerfile: bot_dockerfile
+    container_name: spender_bot
+    env_file:
+      - ../.env
+    depends_on:
+      - database
+    restart: unless-stopped
