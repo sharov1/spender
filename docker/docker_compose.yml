@@ -3,7 +3,7 @@ services:
     image: postgres:17
     container_name: spender_database
     volumes:
-      - /var/lib/postgresql/data:/var/lib/postgresql/data
+      - /home/spender_user/postgresql/data:/home/spender_user/postgresql/data
     env_file:
       - database.env
     ports:
