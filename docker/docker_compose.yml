@@ -3,19 +3,23 @@ services:
     image: postgres:17
     container_name: spender_database
     volumes:
-      - /home/spender_user/postgresql/data:/home/spender_user/postgresql/data
-    env_file:
-      - database.env
+      - /home/spender_user/postgresql/data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
       - "127.0.0.1:5432:5432"
+    restart: unless-stopped
 
   bot:
     build:
       context: ..
-      dockerfile: bot_dockerfile
+      dockerfile: docker/bot_dockerfile
     container_name: spender_bot
-    env_file:
-      - ../.env
+    environment:
+      - BOT_TOKEN
+      - SPENDER_DB_URL
     depends_on:
       - database
     restart: unless-stopped
