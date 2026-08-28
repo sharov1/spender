@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
 #from .base import Base
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
@@ -16,7 +16,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "spenderbot_users"
     
-    telegram_id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, primary_key=True)
     username = Column(String(50), nullable=True)
     firstname = Column(String(50), nullable=False)
     lastname = Column(String(50), nullable=True)
@@ -28,7 +28,7 @@ class User(Base):
 class UserSettings(Base):
     __tablename__ = "spenderbot_settings"
 
-    user_id = mapped_column(Integer, ForeignKey("spenderbot_users.telegram_id"), primary_key=True)
+    user_id = mapped_column(BigInteger, ForeignKey("spenderbot_users.telegram_id"), primary_key=True)
     currency = mapped_column(String(10), default="$")
     categories = mapped_column(String(300), default="Food,Transport,Coffee,Gifts,Other")
     limit = mapped_column(Float, nullable=True)
@@ -42,7 +42,7 @@ class Expense(Base):
     __tablename__ = "spenderbot_expenses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("spenderbot_users.telegram_id"))
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("spenderbot_users.telegram_id"))
     category: Mapped[str] = mapped_column(String(50))
     amount: Mapped[float] = mapped_column(Float)
     created_at = mapped_column(DateTime, default=datetime.now)
