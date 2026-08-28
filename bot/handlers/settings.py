@@ -2,7 +2,7 @@ from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from sqlalchemy import select
-from db.models import async_session, UserSettings, Expense
+from db.models import async_session, UserSettings, User, Expense
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from bot.i18n import t
@@ -79,14 +79,28 @@ def settings_menu(lang="ru"):
 # 📌 Getting/creating settings
 # ---------------------
 
-async def get_user_settings(user_id: int):
+async def get_user_settings(user_id: int, tg_user=None):
     async with async_session() as session:
+        # Ensure user exists in spenderbot_users
+        user = await session.get(User, user_id)
+        if not user:
+            user = User(
+                telegram_id=user_id,
+                username=getattr(tg_user, "username", None) if tg_user else None,
+                firstname=getattr(tg_user, "first_name", None) or "" if tg_user else "",
+                lastname=getattr(tg_user, "last_name", None) if tg_user else None,
+                is_active=True,
+            )
+            session.add(user)
+            await session.flush()
+
         result = await session.execute(
             select(UserSettings).where(UserSettings.user_id == user_id)
         )
         settings = result.scalar()
 
         if settings:
+            await session.commit()
             return settings
 
         # Creating default settings
